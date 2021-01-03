@@ -111,6 +111,9 @@ public class RomMangler {
 			if ("ROM_LOAD16_BYTE".equals(entry.type)) {
 				ROM_WRITE_16_BYTE(entry.file, entry.location, entry.length, rom);
 				System.out.println("Wrote rom 16 byte file " + entry.file);
+			} else if ("ROM_LOAD32_BYTE".equals(entry.type)) {
+				ROM_WRITE_32_BYTE(entry.file, entry.location, entry.length, rom);
+				System.out.println("Wrote rom 16 byte file " + entry.file);
 			} else if ("ROM_LOAD16_WORD_SWAP".equals(entry.type)) {
 				ROM_WRITE_16_WORD_SWAP(entry.file, entry.location, entry.length, rom);
 				System.out.println("Wrote rom 16 word swap file " + entry.file);
@@ -120,6 +123,12 @@ public class RomMangler {
 			} else if ("ROM_LOAD64_BYTE".equals(entry.type)) {
 				ROM_WRITE64_BYTE(entry.file, entry.location, entry.length, rom);
 				System.out.println("Wrote romx word skip 6 file " + entry.file);
+			} else if ("ROM_LOAD".equals(entry.type)) {
+				ROM_WRITE(entry.file, entry.location, entry.length, rom);
+				System.out.println("Wrote rom file " + entry.file);
+			} else if ("ROM_LOAD16_BYTE_SWAP".equals(entry.type)) {
+				ROM_WRITE_16_BYTE_SWAP(entry.file, entry.location, entry.length, rom);
+				System.out.println("Wrote rom 16 byte swap file " + entry.file);
 			} else {
 				throw new RuntimeException("Invalid entry type in split config. " + entry.type);
 			}
@@ -165,6 +174,31 @@ public class RomMangler {
 		writeRom(fileString, output);
 	}
 
+	private static void ROM_WRITE_16_BYTE_SWAP(String fileString, int location, int length, byte[] rom) {
+		byte[] output = new byte[length];
+		for (int x = 0; x < length; x += 2) {
+			output[x] = rom[location + (x + 1) * 2];
+			output[x + 1] = rom[location + x * 2];
+		}
+		writeRom(fileString, output);
+	}
+	
+	private static void ROM_WRITE_32_BYTE(String fileString, int location, int length, byte[] rom) {
+		byte[] output = new byte[length];
+		for (int x = 0; x < length; x ++) {
+			output[x] = rom[location + x * 4];
+		}
+		writeRom(fileString, output);
+	}
+
+	private static void ROM_WRITE(String fileString, int location, int length, byte[] rom) {
+		byte[] output = new byte[length];
+		for (int x = 0; x < length; x ++) {
+			output[x] = rom[location + x];
+		}
+		writeRom(fileString, output);
+	}
+	
 	private static void combine(String configFile, String result) {
 		List<ConfigEntry> entries = loadConfig(configFile);
 		int size = calcSize(entries);
@@ -172,6 +206,9 @@ public class RomMangler {
 		for (ConfigEntry entry: entries) {
 			if ("ROM_LOAD16_BYTE".equals(entry.type)) {
 				ROM_LOAD_16_BYTE(entry.file, entry.location, entry.length, results);
+				System.out.println("Read rom 16 byte file " + entry.file);
+			} else if ("ROM_LOAD32_BYTE".equals(entry.type)) {
+				ROM_LOAD_32_BYTE(entry.file, entry.location, entry.length, results);
 				System.out.println("Read rom 16 byte file " + entry.file);
 			} else if ("ROM_LOAD16_WORD_SWAP".equals(entry.type)) {
 				ROM_LOAD16_WORD_SWAP(entry.file, entry.location, entry.length, results);
@@ -182,6 +219,12 @@ public class RomMangler {
 			} else if ("ROM_LOAD64_BYTE".equals(entry.type)) {
 				ROM_LOAD64_BYTE(entry.file, entry.location, entry.length, results);
 				System.out.println("Read romx word skip 6 file " + entry.file);
+			} else if ("ROM_LOAD".equals(entry.type)) {
+				ROM_LOAD(entry.file, entry.location, entry.length, results);
+				System.out.println("Read rom file " + entry.file);
+			} if ("ROM_LOAD16_BYTE_SWAP".equals(entry.type)) {
+				ROM_LOAD_16_BYTE_SWAP(entry.file, entry.location, entry.length, results);
+				System.out.println("Read rom 16 byte swap file " + entry.file);
 			} else {
 				throw new RuntimeException("Invalid entry type in split config. " + entry.type);
 			}
@@ -251,6 +294,28 @@ public class RomMangler {
 		}
 	}
 
+	private static void ROM_LOAD_16_BYTE_SWAP(String fileString, int location, int length, byte[] results) {
+		byte[] loaded = loadRom(fileString);
+		for (int x = 0; x < length; x += 2) {
+			results[location + x * 2] = loaded[x + 1];
+			results[location + x * 2 + 1] = loaded[x];
+		}
+	}
+	
+	private static void ROM_LOAD_32_BYTE(String fileString, int location, int length, byte[] results) {
+		byte[] loaded = loadRom(fileString);
+		for (int x = 0; x < length; x ++) {
+			results[location + x * 4] = loaded[x];
+		}
+	}
+
+	private static void ROM_LOAD(String fileString, int location, int length, byte[] results) {
+		byte[] loaded = loadRom(fileString);
+		for (int x = 0; x < length; x ++) {
+			results[location + x] = loaded[x];
+		}
+	}
+	
 	private static List<ConfigEntry> loadConfig(String configFile) {
 		List<ConfigEntry> entries = new ArrayList<ConfigEntry>();
 		File file = new File(configFile);
@@ -278,12 +343,18 @@ public class RomMangler {
 			int size = 0;
 			if ("ROM_LOAD16_BYTE".equals(entry.type)) {
 				size = entry.length * 2 + entry.location;
+			} else if ("ROM_LOAD32_BYTE".equals(entry.type)) {
+				size = entry.length * 4 + entry.location;
 			} else if ("ROM_LOAD16_WORD_SWAP".equals(entry.type)) {
 				size = entry.length + entry.location;
 			} else if ("ROMX_LOAD_WORD_SKIP_6".equals(entry.type)) {
 				size = entry.length * 4 + ((entry.location >> 4) << 4);
 			} else if ("ROM_LOAD64_BYTE".equals(entry.type)) {
 				size = entry.length * 8 + ((entry.location >> 4) << 4);
+			} else if ("ROM_LOAD".equals(entry.type)) {
+				size = entry.length + entry.location;
+			} else if ("ROM_LOAD16_BYTE_SWAP".equals(entry.type)) {
+				size = entry.length * 2 + entry.location;
 			} else {
 				throw new RuntimeException("Invalid entry type in split config. " + entry.type);
 			}
