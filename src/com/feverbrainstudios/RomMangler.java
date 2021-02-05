@@ -31,12 +31,71 @@ public class RomMangler {
 				zipdir(arg[1], arg[2]);
 			} else if ("unzip".equals(arg[0])) {
 				unzip(arg[1], arg[2]);
+			} else if ("mra_patch".equals(arg[0])) {
+				mra_patch(arg[1], arg[2]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
 			System.out.println(e.getLocalizedMessage());
 		}
 
+	}
+
+	private static void mra_patch(String originalRom, String modifiedRom) {
+		byte[] original = loadRom(originalRom);
+		byte[] modified = loadRom(modifiedRom);
+		
+		byte[] changes = new byte[original.length];
+
+		for (int x = 0; x < original.length; x ++) {
+			changes[x] = 0;
+		}
+
+		for (int x = 0; x < original.length; x ++) {
+			if (original[x] != modified[x]) {
+				changes[x] = 1;
+				if (x % 2 == 1) {
+					changes[x - 1] = 1;
+				} else {
+					changes[x + 1] = 1;
+				}
+			}
+		}
+
+		byte temp;
+		for (int x = 0; x < original.length; x +=2) {
+			if (changes[x] > 0) {
+				temp = modified[x];
+				modified[x] = modified[x + 1];
+				modified[x + 1] = temp;
+			}
+		}
+		
+		String address = "";
+		String patch = "";
+		boolean consecutive = false;
+		for (int x = 0; x < original.length; x ++) {
+			if (changes[x] > 0) { 
+				if (!consecutive) {
+					address = "0x" + getHex(x, 6);
+					patch += getHex(((int)modified[x]) & 0xFF, 2);
+					consecutive = true;
+				} else {
+					patch += " ";
+					patch += getHex(((int)modified[x]) & 0xFF, 2);
+				}
+			} else {
+				if (consecutive) {
+					System.out.println("<patch offset=\"" + address +  "\">" + patch + "</patch>");
+					patch = "";
+					consecutive = false;
+				}
+			}
+		}
+	}
+	
+	private static String getHex(int value, int digits) {
+		return String.format("%0" + digits + "X", value);
 	}
 
 	private static void unzip(String zipFile, String path) {
