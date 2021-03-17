@@ -90,7 +90,12 @@ public class RomMangler {
 	}
 
 	private static long[] bytesToLongs(byte[] data) {
-		return ByteBuffer.wrap(data).asLongBuffer().array();
+		long longData[] = new long[data.length/8];
+		ByteBuffer bb = ByteBuffer.wrap(data);
+		for (int x = 0; x < data.length/ 8; x ++) {
+			longData[x] = bb.getLong();
+		}
+		return longData;
 	}
 	
 	private static byte[] longsToBytes(long[] data) {
