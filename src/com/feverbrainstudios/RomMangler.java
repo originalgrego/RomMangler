@@ -8,6 +8,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,11 +18,7 @@ import java.util.zip.ZipOutputStream;
 
 public class RomMangler {
 	public static void main(String[] arg) {
-		if (arg.length != 3) {
-			System.out.println("Wrong number of args " + arg.length + "\r\n Command: \r\n " + String.join(" ", arg));
-			throw new RuntimeException("Wrong number of args");
-		}
-		
+
 		try {
 			if ("combine".equals(arg[0])) {
 				combine(arg[1], arg[2]);
@@ -33,12 +30,85 @@ public class RomMangler {
 				unzip(arg[1], arg[2]);
 			} else if ("mra_patch".equals(arg[0])) {
 				mra_patch(arg[1], arg[2]);
+			} else if ("xor_table".equals(arg[0])) {
+				apply_xor_table(arg[1], arg[2]);
+			} else if ("cps2_unshuffle".equals(arg[0])) {
+				cps2_gfx_decode(arg[1], arg[2]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
 			System.out.println(e.getLocalizedMessage());
 		}
 
+	}
+	
+	private static void unshuffle(long buf[],int start, int len) {
+		int i;
+		long t;
+
+		if (len == 2)
+			return;
+
+		assert(len % 4 == 0);   /* must not happen */
+
+		len /= 2;
+
+		unshuffle(buf, start, len);
+		unshuffle(buf, start + len, len);
+
+		for (i = 0; i < len / 2; i++)
+		{
+			t = buf[start + len / 2 + i];
+			buf[start + len / 2 + i] = buf[start + len + i];
+			buf[start + len + i] = t;
+		}
+	}
+
+	private static long[] cps2_create_decoder_table() {
+		long data[] = new long[0x200000 / 8];
+		for (int x = 0; x < data.length; x ++) {
+			data[x] = x;
+		}
+		unshuffle(data, 0, 0x200000 / 8);
+		return data;
+	}
+	
+	private static void cps2_gfx_decode(String file, String out) {
+		byte data[] = loadRom(file);
+		
+		int banksize = 0x200000;
+		int size = data.length;
+		int i;
+
+		long longData[] = bytesToLongs(data);
+		
+		for (i = 0; i < size; i += banksize) {
+			unshuffle(longData, i / 8, banksize / 8);
+		}
+				
+		writeRom(out, longsToBytes(longData));
+	}
+
+	private static long[] bytesToLongs(byte[] data) {
+		return ByteBuffer.wrap(data).asLongBuffer().array();
+	}
+	
+	private static byte[] longsToBytes(long[] data) {
+		ByteBuffer bb = ByteBuffer.allocate(data.length * Long.BYTES);
+        bb.asLongBuffer().put(data);
+        return bb.array();
+	}
+
+	private static void apply_xor_table(String string, String string2) {
+		byte[] original = loadRom(string);
+		byte[] xor = loadRom(string2);
+
+		byte[] changes = new byte[original.length];
+		for (int x = 0; x < original.length; x ++) {
+			changes[x] = (byte) (original[x] ^ xor[x]);
+		}
+		
+		writeRom(string + ".xor", changes);
 	}
 
 	private static void mra_patch(String originalRom, String modifiedRom) {
@@ -281,7 +351,7 @@ public class RomMangler {
 			} else if ("ROM_LOAD".equals(entry.type)) {
 				ROM_LOAD(entry.file, entry.location, entry.length, results);
 				System.out.println("Read rom file " + entry.file);
-			} if ("ROM_LOAD16_BYTE_SWAP".equals(entry.type)) {
+			} else if ("ROM_LOAD16_BYTE_SWAP".equals(entry.type)) {
 				ROM_LOAD_16_BYTE_SWAP(entry.file, entry.location, entry.length, results);
 				System.out.println("Read rom 16 byte swap file " + entry.file);
 			} else {
