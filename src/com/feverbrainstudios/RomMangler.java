@@ -17,6 +17,10 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 public class RomMangler {
+	
+	private static final int BANK_SIZE = 0x200000;
+	
+	
 	public static void main(String[] arg) {
 
 		try {
@@ -34,6 +38,8 @@ public class RomMangler {
 				apply_xor_table(arg[1], arg[2]);
 			} else if ("cps2_unshuffle".equals(arg[0])) {
 				cps2_gfx_decode(arg[1], arg[2]);
+			} else if ("cps2_reshuffle".equals(arg[0])) {
+				cps2_gfx_recode(arg[1], arg[2]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
@@ -64,29 +70,45 @@ public class RomMangler {
 		}
 	}
 
-	private static long[] cps2_create_decoder_table() {
-		long data[] = new long[0x200000 / 8];
+	private static long[] cps2_create_decoder_table(int romSize) {
+		long data[] = new long[romSize / 8];
 		for (int x = 0; x < data.length; x ++) {
 			data[x] = x;
 		}
-		unshuffle(data, 0, 0x200000 / 8);
+		for (int i = 0; i < data.length; i += BANK_SIZE / 8) {
+			unshuffle(data, i, BANK_SIZE / 8);
+		}
 		return data;
 	}
 	
 	private static void cps2_gfx_decode(String file, String out) {
 		byte data[] = loadRom(file);
 		
-		int banksize = 0x200000;
 		int size = data.length;
-		int i;
 
 		long longData[] = bytesToLongs(data);
 		
-		for (i = 0; i < size; i += banksize) {
-			unshuffle(longData, i / 8, banksize / 8);
+		for (int i = 0; i < size; i += BANK_SIZE) {
+			unshuffle(longData, i / 8, BANK_SIZE / 8);
 		}
 				
 		writeRom(out, longsToBytes(longData));
+	}
+	
+	private static void cps2_gfx_recode(String file, String out) {
+		byte data[] = loadRom(file);
+				
+		long longData[] = bytesToLongs(data);
+		
+		long result[] = new long[longData.length];
+		for (int i = 0; i < longData.length; i += BANK_SIZE / 8) {
+			for (int x = 0; x < BANK_SIZE / 16; x ++) {
+				result[i + x * 2] = longData[i + x];
+				result[i + x * 2 + 1] = longData[i + BANK_SIZE / 16 + x];
+			}
+		}
+		
+		writeRom(out, longsToBytes(result));
 	}
 
 	private static long[] bytesToLongs(byte[] data) {
