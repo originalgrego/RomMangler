@@ -9,6 +9,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,12 +41,76 @@ public class RomMangler {
 				cps2_gfx_decode(arg[1], arg[2]);
 			} else if ("cps2_reshuffle".equals(arg[0])) {
 				cps2_gfx_recode(arg[1], arg[2]);
+			} else if ("cps2_spot_encrypt".equals(arg[0])) {
+				cps2_spot_encrypt(arg[1], arg[2], arg[3]);
+			} else if ("cps2_parse_listing".equals(arg[0])) {
+				cps2_parse_listing(arg[1]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
 			System.out.println(e.getLocalizedMessage());
 		}
 
+	}
+	
+	private static void cps2_spot_encrypt(String original, String patched, String patchedEncrypt) {
+		byte[] originalRom = loadRom(original);
+		byte[] patchedRom = loadRom(patched);
+		
+		String result = "";
+		String patchResult = "";
+		int lastDiffIndex = -1;
+		int startAddress = -1;
+		for (int x = 0; x < originalRom.length; x ++) {
+			if (originalRom[x] != patchedRom[x]) {
+				if (lastDiffIndex != x - 1) {
+					startAddress = x;
+				}
+				result += getHex(originalRom[x], 2);
+				patchResult += getHex(patchedRom[x], 2);
+				lastDiffIndex = x;
+			} else {
+				if (!result.isEmpty() ) {
+					System.out.println("A $" + getHex(startAddress,6) + " O $" + result + " P $" + patchResult + " L - " + result.length() / 2);
+				}
+				result = "";
+				patchResult = "";
+				lastDiffIndex = -1;
+			}
+		}
+	}
+	
+	private static void cps2_parse_listing(String listingFile) {
+		List<String> listingStrings = null;
+		try {
+			listingStrings = Files.readAllLines(new File(listingFile).toPath());
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			throw new RuntimeException("No listing file found");
+		}
+		for (int index = 0; index < listingStrings.size(); index ++) {
+			String listing = listingStrings.get(index);
+			if (!listing.isEmpty()) {
+				String[] split = listing.split("\s+");
+				int address = toHex(split[0]);
+				if (address < 0x100000) {
+					boolean isCode = false;
+					try {
+						toHex(split[1]);
+						isCode = true;
+					} catch (Exception e) { }
+					if (isCode) {
+						String endAddress = listingStrings.get(index + 1).split("\s+")[0];
+						int length = toHex(endAddress) - address;
+						if (listing.contains("dc.")) {
+							System.out.println("Data " + split[0] + " - " + endAddress + " " + getHex(length, 4));
+						} else {
+							System.out.println("Code " + split[0] + " - " + endAddress + " " + getHex(length, 4));
+						}
+					}
+				}
+			}
+		}
 	}
 	
 	private static void unshuffle(long buf[],int start, int len) {
@@ -192,7 +257,15 @@ public class RomMangler {
 	}
 	
 	private static String getHex(int value, int digits) {
-		return String.format("%0" + digits + "X", value);
+		String result = String.format("%0" + digits + "X", value);
+		if (result.length() > digits) {
+			return result.substring(result.length() - digits, result.length());
+		}
+		return result;
+	}
+	
+	private static int toHex(String string) {
+		return Integer.valueOf(string.trim(), 16);
 	}
 
 	private static void unzip(String zipFile, String path) {
