@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -44,7 +45,7 @@ public class RomMangler {
 			} else if ("cps2_spot_encrypt".equals(arg[0])) {
 				cps2_spot_encrypt(arg[1], arg[2], arg[3], arg[4]);
 			} else if ("cps2_parse_listing".equals(arg[0])) {
-				cps2_parse_listing(arg[1]);
+				cps2_parse_listing(arg[1], arg[2], arg[3]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
@@ -97,9 +98,25 @@ public class RomMangler {
 		}
 	}
 	
-	private static void cps2_parse_listing(String listingFile) {
+	private static void writeTextFile(String textFile, List<String> text) {
+		FileWriter writer;
+			try {
+				writer = new FileWriter(textFile);
+			for(String str: text) {
+			  writer.write(str + System.lineSeparator());
+			}
+			writer.close();
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to write file " + textFile);
+		} 
+	}
+	
+	private static void cps2_parse_listing(String listingFile, String outFile, String typeString) {
 		List<String> listingStrings = loadTextFile(listingFile);
 
+		boolean typeList = typeString.contains("list");
+		boolean encryptData = false;
+		List<String> results = new ArrayList<String>();
 		for (int index = 0; index < listingStrings.size(); index ++) {
 			String listing = listingStrings.get(index);
 			if (!listing.isEmpty()) {
@@ -115,14 +132,31 @@ public class RomMangler {
 						String endAddress = listingStrings.get(index + 1).split("\s+")[0];
 						int length = fromHexString(endAddress) - address;
 						if (listing.contains("dc.")) {
-							System.out.println("Data " + split[0] + " - " + endAddress + " " + getHex(length, 4));
+							if (typeList) {
+								if (encryptData) {
+									results.add("Encrypted Data " + split[0] + " - " + endAddress + " " + getHex(length, 4));
+								} else {
+									results.add("Data " + split[0] + " - " + endAddress + " " + getHex(length, 4));
+								}
+							} else if (encryptData) {
+								results.add(split[0] + " " + endAddress);
+							}
 						} else {
-							System.out.println("Code " + split[0] + " - " + endAddress + " " + getHex(length, 4));
+							if (typeList) {
+								results.add("Code " + split[0] + " - " + endAddress + " " + getHex(length, 4));
+							} else {
+								results.add(split[0] + " " + endAddress);
+							}
 						}
+					} else if (listing.contains("<encrypted_data>")) {
+						encryptData = true;
+					} else if (listing.contains("</encrypted_data>")) {
+						encryptData = false;
 					}
 				}
 			}
 		}
+		writeTextFile(outFile, results);
 	}
 	
 	private static void unshuffle(long buf[],int start, int len) {
