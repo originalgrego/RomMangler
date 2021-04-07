@@ -42,7 +42,7 @@ public class RomMangler {
 			} else if ("cps2_reshuffle".equals(arg[0])) {
 				cps2_gfx_recode(arg[1], arg[2]);
 			} else if ("cps2_spot_encrypt".equals(arg[0])) {
-				cps2_spot_encrypt(arg[1], arg[2], arg[3]);
+				cps2_spot_encrypt(arg[1], arg[2], arg[3], arg[4]);
 			} else if ("cps2_parse_listing".equals(arg[0])) {
 				cps2_parse_listing(arg[1]);
 			}
@@ -53,55 +53,67 @@ public class RomMangler {
 
 	}
 	
-	private static void cps2_spot_encrypt(String original, String patched, String patchedEncrypt) {
-		byte[] originalRom = loadRom(original);
-		byte[] patchedRom = loadRom(patched);
+	private static void swapBytes(byte[] bytes) {
+		for (int x = 0; x < bytes.length; x += 2) {
+			byte temp = bytes[x];
+			bytes[x] = bytes[x + 1];
+			bytes[x + 1] = temp;
+		}
+	}
+	
+	private static void cps2_spot_encrypt(String patchedRomFile, String encryptedRomFile, String out, String patchedLocations) {
+		byte[] patchedRom = loadRom(patchedRomFile);
+		byte[] encryptedRom = loadRom(encryptedRomFile);
+	
+		swapBytes(encryptedRom);
 		
-		String result = "";
-		String patchResult = "";
-		int lastDiffIndex = -1;
-		int startAddress = -1;
-		for (int x = 0; x < originalRom.length; x ++) {
-			if (originalRom[x] != patchedRom[x]) {
-				if (lastDiffIndex != x - 1) {
-					startAddress = x;
+		List<String> patchedLocs = loadTextFile(patchedLocations);
+		byte[] result = new byte[patchedRom.length];
+		
+		for (int x = 0; x < patchedRom.length; x ++) {
+			result[x] = patchedRom[x];
+		}
+		
+		for (String patchedLoc: patchedLocs) {
+			if (!patchedLoc.trim().isEmpty() && !patchedLoc.contains(";")) {
+				String[] range = patchedLoc.trim().split("\s+"); 
+				int start = fromHexString(range[0]);
+				int end = fromHexString(range[1]);
+				for (int x = start; x < end; x ++) {
+					result[x] = encryptedRom[x];
 				}
-				result += getHex(originalRom[x], 2);
-				patchResult += getHex(patchedRom[x], 2);
-				lastDiffIndex = x;
-			} else {
-				if (!result.isEmpty() ) {
-					System.out.println("A $" + getHex(startAddress,6) + " O $" + result + " P $" + patchResult + " L - " + result.length() / 2);
-				}
-				result = "";
-				patchResult = "";
-				lastDiffIndex = -1;
 			}
+		}
+		
+		writeRom(out, result);
+	}
+	
+	private static List<String> loadTextFile(String textFile) {
+		try {
+			return Files.readAllLines(new File(textFile).toPath());
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			throw new RuntimeException("No text file found with name: " + textFile);
 		}
 	}
 	
 	private static void cps2_parse_listing(String listingFile) {
-		List<String> listingStrings = null;
-		try {
-			listingStrings = Files.readAllLines(new File(listingFile).toPath());
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			throw new RuntimeException("No listing file found");
-		}
+		List<String> listingStrings = loadTextFile(listingFile);
+
 		for (int index = 0; index < listingStrings.size(); index ++) {
 			String listing = listingStrings.get(index);
 			if (!listing.isEmpty()) {
 				String[] split = listing.split("\s+");
-				int address = toHex(split[0]);
+				int address = fromHexString(split[0]);
 				if (address < 0x100000) {
 					boolean isCode = false;
 					try {
-						toHex(split[1]);
+						fromHexString(split[1]);
 						isCode = true;
 					} catch (Exception e) { }
 					if (isCode) {
 						String endAddress = listingStrings.get(index + 1).split("\s+")[0];
-						int length = toHex(endAddress) - address;
+						int length = fromHexString(endAddress) - address;
 						if (listing.contains("dc.")) {
 							System.out.println("Data " + split[0] + " - " + endAddress + " " + getHex(length, 4));
 						} else {
@@ -264,7 +276,7 @@ public class RomMangler {
 		return result;
 	}
 	
-	private static int toHex(String string) {
+	private static int fromHexString(String string) {
 		return Integer.valueOf(string.trim(), 16);
 	}
 
