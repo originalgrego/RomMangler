@@ -35,7 +35,7 @@ public class RomMangler {
 			} else if ("unzip".equals(arg[0])) {
 				unzip(arg[1], arg[2]);
 			} else if ("mra_patch".equals(arg[0])) {
-				mra_patch(arg[1], arg[2]);
+				mra_patch(arg[1], arg[2], arg[3], arg[4]);
 			} else if ("xor_table".equals(arg[0])) {
 				apply_xor_table(arg[1], arg[2]);
 			} else if ("cps2_unshuffle".equals(arg[0])) {
@@ -249,7 +249,9 @@ public class RomMangler {
 		writeRom(string + ".xor", changes);
 	}
 
-	private static void mra_patch(String originalRom, String modifiedRom) {
+	private static void mra_patch(String patchOffset, String byteSwap, String originalRom, String modifiedRom) {
+		int offset = fromHexString(patchOffset);
+		
 		byte[] original = loadRom(originalRom);
 		byte[] modified = loadRom(modifiedRom);
 		
@@ -270,13 +272,8 @@ public class RomMangler {
 			}
 		}
 
-		byte temp;
-		for (int x = 0; x < original.length; x +=2) {
-			if (changes[x] > 0) {
-				temp = modified[x];
-				modified[x] = modified[x + 1];
-				modified[x + 1] = temp;
-			}
+		if ("swap".equals(byteSwap)) {
+			swapBytes(modified);
 		}
 		
 		String address = "";
@@ -285,7 +282,7 @@ public class RomMangler {
 		for (int x = 0; x < original.length; x ++) {
 			if (changes[x] > 0) { 
 				if (!consecutive) {
-					address = "0x" + getHex(x, 6);
+					address = "0x" + getHex(x + offset, 8);
 					patch += getHex(((int)modified[x]) & 0xFF, 2);
 					consecutive = true;
 				} else {
