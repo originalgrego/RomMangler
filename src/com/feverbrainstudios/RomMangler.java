@@ -36,6 +36,8 @@ public class RomMangler {
 				unzip(arg[1], arg[2]);
 			} else if ("mra_patch".equals(arg[0])) {
 				mra_patch(arg[1], arg[2], arg[3], arg[4]);
+			} else if ("bin_to_mra_patch".equals(arg[0])) {
+				bin_to_mra_patch(arg[1], arg[2], arg[3]);
 			} else if ("xor_table".equals(arg[0])) {
 				apply_xor_table(arg[1], arg[2]);
 			} else if ("cps2_unshuffle".equals(arg[0])) {
@@ -249,6 +251,26 @@ public class RomMangler {
 		writeRom(string + ".xor", changes);
 	}
 
+	private static void bin_to_mra_patch(String patchOffset, String byteSwap, String rom) {
+		int offset = fromHexString(patchOffset);
+		
+		byte[] modified = loadRom(rom); // generatePatchString uses the modified data
+
+		byte[] original = new byte[modified.length];
+		byte[] changes = new byte[modified.length];
+
+		// Use every byte in output string
+		for (int x = 0; x < original.length; x ++) {
+			changes[x] = 1;
+		}
+
+		if ("swap".equals(byteSwap)) {
+			swapBytes(modified);
+		}
+		
+		generatePatchStrings(offset, original, modified, changes);
+	}
+	
 	private static void mra_patch(String patchOffset, String byteSwap, String originalRom, String modifiedRom) {
 		int offset = fromHexString(patchOffset);
 		
@@ -276,6 +298,11 @@ public class RomMangler {
 			swapBytes(modified);
 		}
 		
+		
+		generatePatchStrings(offset, original, modified, changes);
+	}
+
+	private static void generatePatchStrings(int offset, byte[] original, byte[] modified, byte[] changes) {
 		String address = "";
 		String patch = "";
 		boolean consecutive = false;
@@ -296,6 +323,9 @@ public class RomMangler {
 					consecutive = false;
 				}
 			}
+		}
+		if (!patch.isEmpty()) {
+			System.out.println("<patch offset=\"" + address +  "\">" + patch + "</patch>");
 		}
 	}
 	
