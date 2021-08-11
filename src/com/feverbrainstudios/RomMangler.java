@@ -48,6 +48,8 @@ public class RomMangler {
 				cps2_spot_encrypt(arg[1], arg[2], arg[3], arg[4]);
 			} else if ("cps2_parse_listing".equals(arg[0])) {
 				cps2_parse_listing(arg[1], arg[2], arg[3]);
+			} else if ("oki_split_samples".equals(arg[0])) {
+				oki_split_samples(arg[1], arg[2], arg[3], arg[4]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
@@ -56,11 +58,36 @@ public class RomMangler {
 
 	}
 	
+	private static void oki_split_samples(String samplesFile, String outDirectory, String adpcmCommandFile, String adpcmOutDirectory) {
+		List<String> adpcmCommands = new ArrayList<String>();
+		byte[] samples = loadRom(samplesFile);
+		int sampleId = 0;
+		for (int x = 0; x < 0x400; x += 8) {
+			int start = bytesToInt(new byte[] {0, samples[x], samples[x+1], samples[x+2]})[0];
+			int end = bytesToInt(new byte[] {0, samples[x+3], samples[x+4], samples[x+5]})[0];
+			if (start != end) {
+				int sampleLength = end - start + 1;
+				byte[] sample = new byte[sampleLength];
+				for (int y = 0; y < sampleLength; y ++) {
+					sample[y] = samples[start + y];
+				}
+				String file = outDirectory + "\\oki_adpcm_" + sampleId + ".bin";
+				String pcmFile = adpcmOutDirectory + "\\pcm_" + sampleId + ".bin";
+				writeRom(file, sample);
+				adpcmCommands.add("adpcm.exe od " + file + " " + pcmFile);
+			}
+			sampleId ++;
+		}
+		writeTextFile(adpcmCommandFile, adpcmCommands);
+	}
+
 	private static void swapBytes(byte[] bytes) {
 		for (int x = 0; x < bytes.length; x += 2) {
-			byte temp = bytes[x];
-			bytes[x] = bytes[x + 1];
-			bytes[x + 1] = temp;
+			if (x + 1 < bytes.length) {
+				byte temp = bytes[x];
+				bytes[x] = bytes[x + 1];
+				bytes[x + 1] = temp;
+			}
 		}
 	}
 	
@@ -124,7 +151,7 @@ public class RomMangler {
 			if (!listing.isEmpty()) {
 				String[] split = listing.split("\s+");
 				int address = fromHexString(split[0]);
-				if (address < 0x100000) {
+				if (true) {
 					boolean isCode = false;
 					try {
 						fromHexString(split[1]);
@@ -227,12 +254,21 @@ public class RomMangler {
 	private static long[] bytesToLongs(byte[] data) {
 		long longData[] = new long[data.length/8];
 		ByteBuffer bb = ByteBuffer.wrap(data);
-		for (int x = 0; x < data.length/ 8; x ++) {
+		for (int x = 0; x < data.length / 8; x ++) {
 			longData[x] = bb.getLong();
 		}
 		return longData;
 	}
-	
+
+	private static int[] bytesToInt(byte[] data) {
+		int intData[] = new int[data.length/4];
+		ByteBuffer bb = ByteBuffer.wrap(data);
+		for (int x = 0; x < data.length / 4; x ++) {
+			intData[x] = bb.getInt();
+		}
+		return intData;
+	}
+
 	private static byte[] longsToBytes(long[] data) {
 		ByteBuffer bb = ByteBuffer.allocate(data.length * Long.BYTES);
         bb.asLongBuffer().put(data);
