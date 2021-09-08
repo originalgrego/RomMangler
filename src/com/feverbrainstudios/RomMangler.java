@@ -22,6 +22,16 @@ public class RomMangler {
 	
 	private static final int BANK_SIZE = 0x200000;
 	
+	private static byte[] SEQUENCE_TEMPLATE = new byte[] {0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			 											  0x00, 0x00, 0x00, 0x00, 0x21, 0x00, 0x00, 0x00,
+			 											  0x00, 0x05, 0x5D, 0x06, (byte) 0xFF, 0x07, 0x7E, 0x1F,
+			 											  0x0B, 0x08, 0x7D, 0x09, 0x03, (byte) 0xB9, 0x17};
+	
+	private static final int SEQUENCE_BANK_OFFSET = 0x28;
+	private static final int SEQUENCE_PROGRAM_OFFSET = 0x2A;
+	
 	
 	public static void main(String[] arg) {
 
@@ -50,7 +60,15 @@ public class RomMangler {
 				cps2_parse_listing(arg[1], arg[2], arg[3]);
 			} else if ("oki_split_samples".equals(arg[0])) {
 				oki_split_samples(arg[1], arg[2], arg[3], arg[4]);
-			}
+			} else if ("pcm_sample_reduce_width".equals(arg[0])) {
+				pcm_sample_reduce(arg[1], arg[2]);
+			} else if ("pcm_sample_reduce_width_dir".equals(arg[0])) {
+				pcm_sample_reduce_width_dir(arg[1], arg[2], arg[3]);
+			} else if ("pcm_sample_upsample".equals(arg[0])) {
+				pcm_sample_upsample(arg[1], arg[2], arg[3]);
+			} else if ("cps2_gen_sequences".equals(arg[0])) {
+				cps2_gen_sequences(arg[1], arg[2], arg[3], arg[4]);
+			} 
 		} catch (RuntimeException e) {
 			e.printStackTrace();
 			System.out.println(e.getLocalizedMessage());
@@ -58,6 +76,71 @@ public class RomMangler {
 
 	}
 	
+	private static void cps2_gen_sequences(String bankString, String startString, String endString, String outDir) {
+		int bank = Integer.valueOf(bankString);
+		int start = Integer.valueOf(startString);
+		int end = Integer.valueOf(endString);
+		
+		for (int x = start; x < end; x ++) {
+			SEQUENCE_TEMPLATE[SEQUENCE_BANK_OFFSET] = (byte) bank;
+			SEQUENCE_TEMPLATE[SEQUENCE_PROGRAM_OFFSET] = (byte) x;
+			writeRom(outDir + "\\sound_effect_"+x+".c2m", SEQUENCE_TEMPLATE);
+		}
+	}
+
+
+
+	private static void pcm_sample_upsample(String in8bitPcmFile, String outFile, String multiplier) {
+		float mult = Float.valueOf(multiplier);
+		
+		byte[] samples = loadRom(in8bitPcmFile);
+		byte[] outSamples = new byte[samples.length * (int) mult];
+		
+		for (int x = 0; x < samples.length; x ++) {
+			outSamples[x * 3] = samples[x];
+			float diff = 0;
+			if (x + 1 < samples.length) {
+				diff = ((float)samples[x+1] - (float)samples[x]) / mult; 
+			}
+			for (int y = 1; y < mult; y ++) {
+				outSamples[x * 3 + y] = (byte) ((float) samples[x] + (diff * (float)y)); 
+			}
+		}
+		
+		writeRom(outFile, outSamples);
+	}
+
+	private static void pcm_sample_reduce_width_dir(String inDir, String outDir, String filePrefix) {
+		File file = new File(inDir);
+
+		if (!file.isDirectory()) {
+			throw new RuntimeException("Second argument of zipdir should be a directory.");
+		}
+		
+		String[] files = file.list();
+
+		
+		for (String fileName: files) {
+			pcm_sample_reduce(fileName, outDir + "\\" + filePrefix + fileName.substring(fileName.lastIndexOf('_')));
+		}
+	}
+
+	
+	private static void pcm_sample_reduce(String in16bitPcmFile, String out8bitPcmFile) {
+		byte[] samples = loadRom(in16bitPcmFile);
+		byte[] outSamples = new byte[samples.length / 2];
+		
+		swapBytes(samples); // Little endian conversion
+		
+		for (int x = 0; x < samples.length; x +=2) {
+			int outInt = bytesToInt(new byte[] {samples[x], samples[x +1], 0, 0})[0];
+			byte out = (byte) (outInt / 65536 / 256);
+			outSamples[x/2] = out;
+		}
+		
+		writeRom(out8bitPcmFile, outSamples);
+	}
+
 	private static void oki_split_samples(String samplesFile, String outDirectory, String adpcmCommandFile, String adpcmOutDirectory) {
 		List<String> adpcmCommands = new ArrayList<String>();
 		byte[] samples = loadRom(samplesFile);
