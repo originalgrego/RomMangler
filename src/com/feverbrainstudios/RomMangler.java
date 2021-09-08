@@ -121,7 +121,7 @@ public class RomMangler {
 
 		
 		for (String fileName: files) {
-			pcm_sample_reduce(fileName, outDir + "\\" + filePrefix + fileName.substring(fileName.lastIndexOf('_')));
+			pcm_sample_reduce(inDir + "\\" + fileName, outDir + "\\" + filePrefix + fileName.substring(fileName.lastIndexOf('_')));
 		}
 	}
 
