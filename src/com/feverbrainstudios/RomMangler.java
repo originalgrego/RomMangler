@@ -25,12 +25,13 @@ public class RomMangler {
 	private static byte[] SEQUENCE_TEMPLATE = new byte[] {0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-			 											  0x00, 0x00, 0x00, 0x00, 0x21, 0x00, 0x00, 0x00,
-			 											  0x00, 0x05, 0x5D, 0x06, (byte) 0xFF, 0x07, 0x7E, 0x1F,
+			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			 											  0x00, 0x05, 0x0D, 0x06, (byte) 0xFF, 0x07, 0x7E, 0x1F,
 			 											  0x0B, 0x08, 0x7D, 0x09, 0x03, (byte) 0xB9, 0x17};
 	
 	private static final int SEQUENCE_BANK_OFFSET = 0x28;
 	private static final int SEQUENCE_PROGRAM_OFFSET = 0x2A;
+	private static final int TRACK_POINTER = 0x21;
 	
 	
 	public static void main(String[] arg) {
@@ -68,7 +69,11 @@ public class RomMangler {
 				pcm_sample_upsample(arg[1], arg[2], arg[3]);
 			} else if ("cps2_gen_sequences".equals(arg[0])) {
 				cps2_gen_sequences(arg[1], arg[2], arg[3], arg[4]);
-			} 
+			} else if ("cps2_apply_sequences".equals(arg[0])) {
+				cps2_apply_sequences(arg[1], arg[2], arg[3]);
+			} else if ("bin_patch".equals(arg[0])) {
+				binary_patch(arg[1], arg[2], arg[3]);
+			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
 			System.out.println(e.getLocalizedMessage());
@@ -76,16 +81,79 @@ public class RomMangler {
 
 	}
 	
+	// Patch is filename, patch address in hex
+	private static void binary_patch(String patches, String bin, String out) {
+		byte[] data = loadRom(bin);
+	    List<String> patchesList = loadTextFile(patches);
+	    for (String patch: patchesList) {
+	    	String[] patchSplit = patch.split(",");
+	    	int location = fromHexString(patchSplit[1]);
+	    	byte[] patchData = loadRom(patchSplit[0]);
+			for (int x = 0; x < patchData.length; x ++) {
+				data[location + x] = patchData[x];
+			}
+	    }
+	    writeRom(out, data);
+	    System.out.println("Wrote binary file " + out);
+	}
+
+	private static void cps2_apply_sequences(String rom, String out, String projectFile) {
+		byte[] data = loadRom(rom);
+		List<String> projectFileStrings = loadTextFile(projectFile);
+		
+		int sequenceTableStart = 0x8c05;
+		int sequencesPointer = 0xbc05;
+		for (String projectEntry: projectFileStrings) {
+			if (projectEntry.contains("SEQUENCE")) {
+				String[] split = projectEntry.split("~");
+
+				byte[] sequenceData = loadRom(split[2]);
+				int index = Integer.parseInt(split[3]);
+				
+				int sequenceStart = sequencesPointer;
+				for (int x = 0; x < sequenceData.length; x ++) {
+					data[sequencesPointer + x] = sequenceData[x];
+				}
+
+				int sequenceTablePointer = sequenceTableStart + index * 4;
+				data[sequenceTablePointer] = 0;
+				data[sequenceTablePointer + 1] = (byte) ((sequenceStart >> 16) & 0xFF);
+				data[sequenceTablePointer + 2] = (byte) ((sequenceStart >> 8) & 0xFF);
+				data[sequenceTablePointer + 3] = (byte) (sequenceStart & 0xFF);
+				
+				sequencesPointer += sequenceData.length;
+			}
+		}
+		
+		writeRom(out, data);
+		
+		System.out.println("Applied sequences!");
+	}
+
+	
 	private static void cps2_gen_sequences(String bankString, String startString, String endString, String outDir) {
 		int bank = Integer.valueOf(bankString);
 		int start = Integer.valueOf(startString);
 		int end = Integer.valueOf(endString);
 		
+		int trackPointerPositon = 0x10;
 		for (int x = start; x < end; x ++) {
 			SEQUENCE_TEMPLATE[SEQUENCE_BANK_OFFSET] = (byte) bank;
 			SEQUENCE_TEMPLATE[SEQUENCE_PROGRAM_OFFSET] = (byte) x;
+			for (int y = 0; y < 0x20; y += 2) {
+				SEQUENCE_TEMPLATE[y + 1] = 0;
+				SEQUENCE_TEMPLATE[y + 2] = 0;
+				if (y == trackPointerPositon) {
+					SEQUENCE_TEMPLATE[y + 2] = TRACK_POINTER;
+				}
+			}
 			writeRom(outDir + "\\sound_effect_"+x+".c2m", SEQUENCE_TEMPLATE);
+			trackPointerPositon +=2;
+			if (trackPointerPositon >= 0x20) {
+				trackPointerPositon = 0x10;
+			}
 		}
+		System.out.println("Generated Sequences!");
 	}
 
 
