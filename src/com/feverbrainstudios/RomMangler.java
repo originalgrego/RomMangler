@@ -120,13 +120,11 @@ public class RomMangler {
 			pix34 = pix34 << 1;
 
 			current += is_high_bit_set(pix12);
-			current = current << 1;
 			pix12 = pix12 << 1;
 
-			if (x % 2 == 0) {
-				current = current << 4;
-			} else {
+			if (x % 2 == 1) {
 				result[x / 2] = (byte) (current & 0xFF);
+				current = 0;
 			}
 		}
 		
@@ -134,7 +132,7 @@ public class RomMangler {
 	}
 	
 	private static int is_high_bit_set(int aByte) {
-		return (aByte & 0x80) > 0 ? 1: 0;
+		return (aByte & 0x80) > 0 ? 1 : 0;
 	}
 
 	// Patch is filename, patch address in hex
