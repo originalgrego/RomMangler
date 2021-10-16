@@ -78,6 +78,8 @@ public class RomMangler {
 				cps2_apply_sequences(arg[1], arg[2], arg[3]);
 			} else if ("bin_patch".equals(arg[0])) {
 				binary_patch(arg[1], arg[2], arg[3]);
+			} else if ("cps1_8bpp_to_bitplanes".equals(arg[0])) {
+				cps1_8bpp_to_bitplanes(arg[1], arg[2]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
@@ -86,6 +88,55 @@ public class RomMangler {
 
 	}
 	
+	private static void cps1_8bpp_to_bitplanes(String in, String out) {
+		byte[] tile8bpp = loadRom(in);
+		byte[] tile4bpp = new byte[128];
+		for (int x = 0; x < 256; x +=2) {
+			tile4bpp[x / 2] = (byte) (((tile8bpp[x] << 4) & 0xF0) | ((tile8bpp[x + 1]) & 0xF));
+		}
+		
+		byte[] output = new byte[128];
+		for (int x = 0; x < 128; x +=4) {
+			byte[] eightPixels = cps1_bitplanes_from_pixels(tile4bpp[x], tile4bpp[x + 1], tile4bpp[x + 2], tile4bpp[x + 3]);
+			patch(output, eightPixels, x);
+		}
+		writeRom(out, output);
+	}
+
+	private static byte[] cps1_bitplanes_from_pixels(int pix12, int pix34, int pix56, int pix78) {
+		byte[] result = new byte[4];
+		int current = 0;
+		for (int x = 0; x < 8; x ++) {
+			current += is_high_bit_set(pix78);
+			current = current << 1;
+			pix78 = pix78 << 1;
+
+			current += is_high_bit_set(pix56);
+			current = current << 1;
+			pix56 = pix56 << 1;
+
+			current += is_high_bit_set(pix34);
+			current = current << 1;
+			pix34 = pix34 << 1;
+
+			current += is_high_bit_set(pix12);
+			current = current << 1;
+			pix12 = pix12 << 1;
+
+			if (x % 2 == 0) {
+				current = current << 4;
+			} else {
+				result[x / 2] = (byte) (current & 0xFF);
+			}
+		}
+		
+		return result;
+	}
+	
+	private static int is_high_bit_set(int aByte) {
+		return (aByte & 0x80) > 0 ? 1: 0;
+	}
+
 	// Patch is filename, patch address in hex
 	private static void binary_patch(String patches, String bin, String out) {
 		byte[] data = loadRom(bin);
@@ -94,12 +145,16 @@ public class RomMangler {
 	    	String[] patchSplit = patch.split(",");
 	    	int location = fromHexString(patchSplit[1]);
 	    	byte[] patchData = loadRom(patchSplit[0]);
-			for (int x = 0; x < patchData.length; x ++) {
-				data[location + x] = patchData[x];
-			}
+	    	patch(data, patchData, location);
 	    }
 	    writeRom(out, data);
 	    System.out.println("Wrote binary file " + out);
+	}
+	
+	private static void patch(byte[] data, byte[] patchData, int location) {
+		for (int x = 0; x < patchData.length; x ++) {
+			data[location + x] = patchData[x];
+		}
 	}
 
 	private static void cps2_apply_sequences(String rom, String out, String projectFile) {
@@ -116,9 +171,7 @@ public class RomMangler {
 				int index = Integer.parseInt(split[3]);
 				
 				int sequenceStart = sequencesPointer;
-				for (int x = 0; x < sequenceData.length; x ++) {
-					data[sequencesPointer + x] = sequenceData[x];
-				}
+				patch(data, sequenceData, sequencesPointer);
 
 				int sequenceTablePointer = sequenceTableStart + index * 4;
 				data[sequenceTablePointer] = 0;
