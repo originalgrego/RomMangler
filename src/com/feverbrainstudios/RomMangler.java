@@ -90,20 +90,42 @@ public class RomMangler {
 	
 	private static void cps1_8bpp_to_bitplanes(String in, String out) {
 		byte[] tile8bpp = loadRom(in);
-		byte[] tile4bpp = new byte[128];
-		for (int x = 0; x < 256; x +=2) {
-			tile4bpp[x / 2] = (byte) (((tile8bpp[x] << 4) & 0xF0) | ((tile8bpp[x + 1]) & 0xF));
-		}
 		
 		byte[] output = new byte[128];
-		for (int x = 0; x < 128; x +=4) {
-			byte[] eightPixels = cps1_bitplanes_from_pixels(tile4bpp[x], tile4bpp[x + 1], tile4bpp[x + 2], tile4bpp[x + 3]);
+		for (int x = 0; x < 128; x += 4) {
+			byte[] eightPixels = cps1_bitplanes_from_pixels(tile8bpp, x * 2);
 			patch(output, eightPixels, x);
 		}
 		writeRom(out, output);
 	}
 
-	private static byte[] cps1_bitplanes_from_pixels(int pix12, int pix34, int pix56, int pix78) {
+	private static byte[] cps1_bitplanes_from_pixels(byte[] tile8bpp, int location) {
+		byte[] result = new byte[4];
+		for (int x = 0; x < 8; x ++) {
+			result[0] += ((tile8bpp[location + x] & 0x01) > 0) ? 1 : 0; 
+			result[1] += ((tile8bpp[location + x] & 0x02) > 0) ? 1 : 0;
+			result[2] += ((tile8bpp[location + x] & 0x04) > 0) ? 1 : 0;
+			result[3] += ((tile8bpp[location + x] & 0x08) > 0) ? 1 : 0;
+
+			if (x != 7) {
+				result[0] = (byte)(result[0] << 1);
+				result[1] = (byte)(result[1] << 1);
+				result[2] = (byte)(result[2] << 1);
+				result[3] = (byte)(result[3] << 1);
+			}
+		}
+		return result;
+	}
+
+	private static byte[] convert_8bpp_low_nib_to_4bpp(byte[] tile8bpp) {
+		byte[] tile4bpp = new byte[128];
+		for (int x = 0; x < 256; x +=2) {
+			tile4bpp[x / 2] = (byte) (((tile8bpp[x] << 4) & 0xF0) | ((tile8bpp[x + 1]) & 0xF));
+		}
+		return tile4bpp;
+	}
+	
+	private static byte[] cps1_4bpp_to_4bpp_bitplanes(int pix12, int pix34, int pix56, int pix78) {
 		byte[] result = new byte[4];
 		int current = 0;
 		for (int x = 0; x < 8; x ++) {
