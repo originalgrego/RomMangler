@@ -769,8 +769,8 @@ public class RomMangler {
 		byte[] output = new byte[length];
 		int nextLocation = location;
 		for (int x = 0; x < length; x += 2) {
-			output[x + 0] = rom[nextLocation + x + 1]; 
-			output[x + 1] = rom[nextLocation + x + 0]; 
+			output[x + 0] = rom[nextLocation + 1]; 
+			output[x + 1] = rom[nextLocation + 0]; 
 			nextLocation += 4;
 		}
 		writeRom(fileString, output);
@@ -921,8 +921,8 @@ public class RomMangler {
 		byte[] loaded = loadRom(fileString);
 		int nextLocation = location;
 		for (int x = 0; x < length; x += 2) {
-			results[nextLocation + x + 0] = loaded[x + 1];
-			results[nextLocation + x + 1] = loaded[x + 0];
+			results[nextLocation + 0] = loaded[x + 1];
+			results[nextLocation + 1] = loaded[x + 0];
 			nextLocation += 4;
 		}
 	}
