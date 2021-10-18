@@ -22,7 +22,7 @@ public class RomMangler {
 	
 	public enum SPLIT_TYPES {
 		ROM_LOAD16_BYTE, ROM_LOAD32_BYTE, ROM_LOAD16_WORD_SWAP, ROMX_LOAD_WORD_SKIP_6, 
-		ROM_LOAD64_BYTE, ROM_LOAD, ROM_LOAD16_BYTE_SWAP, ROM_LOAD64_WORD, FILL
+		ROM_LOAD64_BYTE, ROM_LOAD, ROM_LOAD16_BYTE_SWAP, ROM_LOAD64_WORD, FILL, ROM_LOAD32_WORD_SWAP
 	}
 
 	private static final int BANK_SIZE = 0x200000;
@@ -753,12 +753,27 @@ public class RomMangler {
 				ROM_WRITE64_BYTE(entry.file, entry.location, entry.length, rom);
 				System.out.println("Wrote romx word skip 6 file " + entry.file);
 				break;
+			case ROM_LOAD32_WORD_SWAP:
+				ROM_WRITE32_WORD_SWAP(entry.file, entry.location, entry.length, rom);
+				System.out.println("Wrote rom 32 word swap file " + entry.file);
+				break;
 			case FILL:
 				throw new RuntimeException("Fill is meant to be use to pad roms while combining.");
 			default:
 				throw new RuntimeException("Invalid entry type in split config. " + entry.type);
 			}
 		}
+	}
+
+	private static void ROM_WRITE32_WORD_SWAP(String fileString, int location, int length, byte[] rom) {
+		byte[] output = new byte[length];
+		int nextLocation = location;
+		for (int x = 0; x < length; x += 2) {
+			output[x + 0] = rom[nextLocation + x + 1]; 
+			output[x + 1] = rom[nextLocation + x + 0]; 
+			nextLocation += 4;
+		}
+		writeRom(fileString, output);
 	}
 
 	private static void ROMX_WRITE_WORD_SKIP_6(String fileString, int location, int length, byte[] rom) {
@@ -860,8 +875,12 @@ public class RomMangler {
 					ROM_LOAD64_BYTE(entry.file, entry.location, entry.length, results);
 					System.out.println("Read romx word skip 6 file " + entry.file);
 					break;
+				case ROM_LOAD32_WORD_SWAP:
+					ROM_LOAD32_WORD_SWAP(entry.file, entry.location, entry.length, results);
+					System.out.println("Read rom 32 word swap file " + entry.file);
+					break;
 				case FILL:
-					FILL_WITH_ZEROS(entry.location, entry.length, results);
+					FILL_WITH_BYTES(entry.file, entry.location, entry.length, results);
 					break;
 				default:
 					throw new RuntimeException("Invalid entry type in split config. " + entry.type);
@@ -898,6 +917,16 @@ public class RomMangler {
 		return results;
 	}
 
+	private static void ROM_LOAD32_WORD_SWAP(String fileString, int location, int length, byte[] results) {
+		byte[] loaded = loadRom(fileString);
+		int nextLocation = location;
+		for (int x = 0; x < length; x += 2) {
+			results[nextLocation + x + 0] = loaded[x + 1];
+			results[nextLocation + x + 1] = loaded[x + 0];
+			nextLocation += 4;
+		}
+	}
+	
 	private static void ROMX_LOAD_WORD_SKIP_6(String fileString, int location, int length, byte[] results) {
 		byte[] loaded = loadRom(fileString);
 		int nextLocation = location;
@@ -954,9 +983,10 @@ public class RomMangler {
 		}
 	}
 	
-	private static void FILL_WITH_ZEROS(int location, int length, byte[] results) {
+	private static void FILL_WITH_BYTES(String byteString, int location, int length, byte[] results) {
+		byte value = (byte) fromHexString(byteString);
 		for (int x = 0; x < length; x ++) {
-			results[location + x] = 0;
+			results[location + x] = value;
 		}
 	}
 	
@@ -1011,6 +1041,9 @@ public class RomMangler {
 					break;
 				case ROM_LOAD64_BYTE:
 					size = entry.length * 8 + ((entry.location >> 4) << 4);
+					break;
+				case ROM_LOAD32_WORD_SWAP:
+					size = entry.length * 2 + ((entry.location >> 4) << 4);
 					break;
 				case FILL:
 					size = entry.length + entry.location;
