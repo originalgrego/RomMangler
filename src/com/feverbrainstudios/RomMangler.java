@@ -80,12 +80,23 @@ public class RomMangler {
 				binary_patch(arg[1], arg[2], arg[3]);
 			} else if ("cps1_8bpp_to_bitplanes".equals(arg[0])) {
 				cps1_8bpp_to_bitplanes(arg[1], arg[2]);
+			} else if ("cps1_8bpp_to_bitplanes_dir".equals(arg[0])) {
+				cps1_8bpp_to_bitplanes_dir(arg[1], arg[2]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
 			System.out.println(e.getLocalizedMessage());
 		}
 
+	}
+	
+	private static void cps1_8bpp_to_bitplanes_dir(String inDir, String outDir) {
+		iterateDirectory(inDir, new DirectoryIterator() {
+			@Override
+			public void handleFile(String fileName) {
+				cps1_8bpp_to_bitplanes(inDir + "\\" + fileName, outDir + "\\" + fileName);
+			}
+		});	
 	}
 	
 	private static void cps1_8bpp_to_bitplanes(String in, String out) {
@@ -257,20 +268,30 @@ public class RomMangler {
 	}
 
 	private static void pcm_sample_reduce_width_dir(String inDir, String outDir, String filePrefix) {
+		iterateDirectory(inDir, new DirectoryIterator() {
+			@Override
+			public void handleFile(String fileName) {
+				pcm_sample_reduce(inDir + "\\" + fileName, outDir + "\\" + filePrefix + fileName.substring(fileName.lastIndexOf('_')));
+			}
+		});	
+	}
+
+	private static void iterateDirectory(String inDir, DirectoryIterator iterator) {
 		File file = new File(inDir);
 
 		if (!file.isDirectory()) {
-			throw new RuntimeException("Second argument of zipdir should be a directory.");
+			throw new RuntimeException("Argument to iterateDirectory should be a directory - " + inDir);
 		}
 		
 		String[] files = file.list();
-
-		
 		for (String fileName: files) {
-			pcm_sample_reduce(inDir + "\\" + fileName, outDir + "\\" + filePrefix + fileName.substring(fileName.lastIndexOf('_')));
+			iterator.handleFile(fileName);
 		}
 	}
-
+	
+	private interface DirectoryIterator {
+		public void handleFile(String file);
+	}
 	
 	private static void pcm_sample_reduce(String in16bitPcmFile, String out8bitPcmFile) {
 		byte[] samples = loadRom(in16bitPcmFile);
