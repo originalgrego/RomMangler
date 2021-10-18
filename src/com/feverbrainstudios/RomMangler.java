@@ -82,6 +82,8 @@ public class RomMangler {
 				cps1_8bpp_to_bitplanes(arg[1], arg[2]);
 			} else if ("cps1_8bpp_to_bitplanes_dir".equals(arg[0])) {
 				cps1_8bpp_to_bitplanes_dir(arg[1], arg[2]);
+			} else if ("file_names_to_patches".equals(arg[0])) {
+				file_names_to_patches(arg[1], arg[2]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
@@ -90,6 +92,20 @@ public class RomMangler {
 
 	}
 	
+	private static void file_names_to_patches(String directory, String outFile) {
+		List<String> patches = new ArrayList<String>();
+		iterateDirectory(directory, new DirectoryIterator() {
+			@Override
+			public void handleFile(String fileName) {
+				String hexString = fileName.substring(0, fileName.lastIndexOf('.'));
+				int tileId = fromHexString(hexString);
+				int patchLoc = tileId * 128;
+				patches.add(directory + "\\" + fileName + "," + getHex(patchLoc, 8));
+			}
+		});	
+		writeTextFile(outFile, patches);
+	}
+
 	private static void cps1_8bpp_to_bitplanes_dir(String inDir, String outDir) {
 		iterateDirectory(inDir, new DirectoryIterator() {
 			@Override
@@ -101,6 +117,17 @@ public class RomMangler {
 	
 	private static void cps1_8bpp_to_bitplanes(String in, String out) {
 		byte[] tile8bpp = loadRom(in);
+		
+		// Transform transparency and mask off palette assignment
+		// If a palette was assigned (upper nibble non zero) it's 0 entry is valid, otherwise its a transparent pixel set it to cps1 transparency value F
+		for (int x = 0; x < 256; x ++) {
+			if (tile8bpp[x] == 0) {
+				tile8bpp[x] = (byte) 0xF;
+			} else {
+				tile8bpp[x] = (byte) (tile8bpp[x] & 0xF);
+			}
+		}
+		
 		
 		byte[] output = new byte[128];
 		for (int x = 0; x < 128; x += 4) {
