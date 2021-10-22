@@ -22,7 +22,7 @@ public class RomMangler {
 	
 	public enum SPLIT_TYPES {
 		ROM_LOAD16_BYTE, ROM_LOAD32_BYTE, ROM_LOAD16_WORD_SWAP, ROMX_LOAD_WORD_SKIP_6, 
-		ROM_LOAD64_BYTE, ROM_LOAD, ROM_LOAD16_BYTE_SWAP, ROM_LOAD64_WORD, FILL, ROM_LOAD32_WORD_SWAP
+		ROM_LOAD64_BYTE, ROM_LOAD, ROM_LOAD16_BYTE_SWAP, ROM_LOAD64_WORD, FILL, ROM_LOAD32_WORD_SWAP, ROM_LOAD32_WORD
 	}
 
 	private static final int BANK_SIZE = 0x200000;
@@ -754,8 +754,12 @@ public class RomMangler {
 				System.out.println("Wrote romx word skip 6 file " + entry.file);
 				break;
 			case ROM_LOAD32_WORD_SWAP:
-				ROM_WRITE32_WORD_SWAP(entry.file, entry.location, entry.length, rom);
+				ROM_WRITE32_WORD(entry.file, entry.location, entry.length, rom, true);
 				System.out.println("Wrote rom 32 word swap file " + entry.file);
+				break;
+			case ROM_LOAD32_WORD:
+				ROM_WRITE32_WORD(entry.file, entry.location, entry.length, rom, false);
+				System.out.println("Wrote rom 32 word file " + entry.file);
 				break;
 			case FILL:
 				throw new RuntimeException("Fill is meant to be use to pad roms while combining.");
@@ -765,13 +769,16 @@ public class RomMangler {
 		}
 	}
 
-	private static void ROM_WRITE32_WORD_SWAP(String fileString, int location, int length, byte[] rom) {
+	private static void ROM_WRITE32_WORD(String fileString, int location, int length, byte[] rom, boolean byteSwap) {
 		byte[] output = new byte[length];
 		int nextLocation = location;
 		for (int x = 0; x < length; x += 2) {
-			output[x + 0] = rom[nextLocation + 1]; 
-			output[x + 1] = rom[nextLocation + 0]; 
+			output[x] = rom[nextLocation]; 
+			output[x + 1] = rom[nextLocation + 1]; 
 			nextLocation += 4;
+		}
+		if (byteSwap) {
+			swapBytes(output);
 		}
 		writeRom(fileString, output);
 	}
@@ -876,8 +883,12 @@ public class RomMangler {
 					System.out.println("Read romx word skip 6 file " + entry.file);
 					break;
 				case ROM_LOAD32_WORD_SWAP:
-					ROM_LOAD32_WORD_SWAP(entry.file, entry.location, entry.length, results);
+					ROM_LOAD32_WORD(entry.file, entry.location, entry.length, results, true);
 					System.out.println("Read rom 32 word swap file " + entry.file);
+					break;
+				case ROM_LOAD32_WORD:
+					ROM_LOAD32_WORD(entry.file, entry.location, entry.length, results, false);
+					System.out.println("Read rom 32 word file " + entry.file);
 					break;
 				case FILL:
 					FILL_WITH_BYTES(entry.file, entry.location, entry.length, results);
@@ -917,12 +928,15 @@ public class RomMangler {
 		return results;
 	}
 
-	private static void ROM_LOAD32_WORD_SWAP(String fileString, int location, int length, byte[] results) {
+	private static void ROM_LOAD32_WORD(String fileString, int location, int length, byte[] results, boolean byteSwap) {
 		byte[] loaded = loadRom(fileString);
+		if (byteSwap) {
+			swapBytes(loaded);
+		}
 		int nextLocation = location;
 		for (int x = 0; x < length; x += 2) {
-			results[nextLocation + 0] = loaded[x + 1];
-			results[nextLocation + 1] = loaded[x + 0];
+			results[nextLocation ] = loaded[x];
+			results[nextLocation + 1] = loaded[x + 1];
 			nextLocation += 4;
 		}
 	}
@@ -1042,6 +1056,7 @@ public class RomMangler {
 				case ROM_LOAD64_BYTE:
 					size = entry.length * 8 + ((entry.location >> 4) << 4);
 					break;
+				case ROM_LOAD32_WORD:
 				case ROM_LOAD32_WORD_SWAP:
 					size = entry.length * 2 + ((entry.location >> 4) << 4);
 					break;
