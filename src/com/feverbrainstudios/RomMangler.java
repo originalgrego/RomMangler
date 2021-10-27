@@ -78,10 +78,10 @@ public class RomMangler {
 				cps2_apply_sequences(arg[1], arg[2], arg[3]);
 			} else if ("bin_patch".equals(arg[0])) {
 				binary_patch(arg[1], arg[2], arg[3]);
-			} else if ("cps1_8bpp_to_bitplanes".equals(arg[0])) {
-				cps1_8bpp_to_bitplanes(arg[1], arg[2]);
-			} else if ("cps1_8bpp_to_bitplanes_dir".equals(arg[0])) {
-				cps1_8bpp_to_bitplanes_dir(arg[1], arg[2]);
+			} else if ("cps1_16bpp_to_bitplanes".equals(arg[0])) {
+				cps1_16bpp_to_bitplanes(arg[1], arg[2]);
+			} else if ("cps1_16bpp_to_bitplanes_dir".equals(arg[0])) {
+				cps1_16bpp_to_bitplanes_dir(arg[1], arg[2]);
 			} else if ("file_names_to_patches".equals(arg[0])) {
 				file_names_to_patches(arg[1], arg[2]);
 			}
@@ -106,28 +106,27 @@ public class RomMangler {
 		writeTextFile(outFile, patches);
 	}
 
-	private static void cps1_8bpp_to_bitplanes_dir(String inDir, String outDir) {
+	private static void cps1_16bpp_to_bitplanes_dir(String inDir, String outDir) {
 		iterateDirectory(inDir, new DirectoryIterator() {
 			@Override
 			public void handleFile(String fileName) {
-				cps1_8bpp_to_bitplanes(inDir + "\\" + fileName, outDir + "\\" + fileName);
+				cps1_16bpp_to_bitplanes(inDir + "\\" + fileName, outDir + "\\" + fileName);
 			}
 		});	
 	}
 	
-	private static void cps1_8bpp_to_bitplanes(String in, String out) {
-		byte[] tile8bpp = loadRom(in);
+	private static void cps1_16bpp_to_bitplanes(String in, String out) {
+		byte[] tile16bppAsBytes = loadRom(in);
 		
 		// Transform transparency and mask off palette assignment
-		// If a palette was assigned (upper nibble non zero) it's 0 entry is valid, otherwise its a transparent pixel set it to cps1 transparency value F
-		for (int x = 0; x < 256; x ++) {
-			if (tile8bpp[x] == 0) {
-				tile8bpp[x] = (byte) 0xF;
+		byte[] tile8bpp = new byte[256];
+		for (int x = 0; x < 512; x +=2) {
+			if (tile16bppAsBytes[x] == 0 && tile16bppAsBytes[x + 1] == 0) {
+				tile8bpp[x / 2] = (byte) 0xF;
 			} else {
-				tile8bpp[x] = (byte) (tile8bpp[x] & 0xF);
+				tile8bpp[x / 2] = (byte) (tile16bppAsBytes[x + 1] & 0xF);
 			}
 		}
-		
 		
 		byte[] output = new byte[128];
 		for (int x = 0; x < 128; x += 4) {
@@ -935,8 +934,8 @@ public class RomMangler {
 		}
 		int nextLocation = location;
 		for (int x = 0; x < length; x += 2) {
-			results[nextLocation ] = loaded[x];
-			results[nextLocation + 1] = loaded[x + 1];
+			results[nextLocation + 0] = loaded[x + 1];
+			results[nextLocation + 1] = loaded[x + 0];
 			nextLocation += 4;
 		}
 	}
