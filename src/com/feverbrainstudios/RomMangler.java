@@ -13,6 +13,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -84,6 +85,8 @@ public class RomMangler {
 				cps1_16bpp_to_bitplanes_dir(arg[1], arg[2]);
 			} else if ("file_names_to_patches".equals(arg[0])) {
 				file_names_to_patches(arg[1], arg[2]);
+			} else if ("text_patch".equals(arg[0])) {
+				text_patch(arg[1], arg[2], arg[3]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
@@ -206,6 +209,20 @@ public class RomMangler {
 	    }
 	    writeRom(out, data);
 	    System.out.println("Wrote binary file " + out);
+	}
+	
+	private static void text_patch(String patches, String textFile, String out) {
+	    List<String> file = loadTextFile(textFile);
+	    String fileText = String.join("\r\n", file);
+	    List<String> patchesList = loadTextFile(patches);
+	    for (String patch: patchesList) {
+	    	String[] patchSplit = patch.split(",");
+	    	List<String> patchesForSplit = loadTextFile(patchSplit[1]);
+	    	String patchesForSplitText = String.join("\r\n", patchesForSplit);
+	    	fileText = fileText.replace(patchSplit[0], patchesForSplitText);
+	    }
+	    writeTextFile(out, Arrays.asList(fileText.split("\r\n")));
+	    System.out.println("Wrote patched text file " + out);
 	}
 	
 	private static void patch(byte[] data, byte[] patchData, int location) {
