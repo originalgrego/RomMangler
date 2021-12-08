@@ -273,6 +273,11 @@ public class RomMangler {
 
 		byte[] notes = {(byte) 0xB9, (byte) 0xB7, (byte) 0xBB, (byte) 0xB5, (byte) 0xBD}; // Up to four variants
 		
+		short[] sequenceStartIds = new short[csvData.size() - 1];
+		byte[] variantsData = new byte[csvData.size() - 1];
+		byte[] trackCounts = new byte[csvData.size() - 1];
+		List<String> newProjectData = new ArrayList<String>();
+		
 		for (int x = 1; x < csvData.size(); x ++) { // Skip headers
 			String line = csvData.get(x);
 			String[] split = line.split(",");
@@ -283,6 +288,10 @@ public class RomMangler {
 			int variants = fromHexString(split[3]);
 			int track = Integer.valueOf(split[4]);
 			int priority = fromHexString(split[5]);
+			
+			sequenceStartIds[x - 1] = (short) sequenceStartId;
+			variantsData[x - 1] = (byte) variants;
+			trackCounts[x - 1] = (byte) (track == -1 ? 6 : 1);
 			
 			SEQUENCE_TEMPLATE[SEQUENCE_PRIORITY_OFFSET] = (byte) priority;
 			SEQUENCE_TEMPLATE[SEQUENCE_BANK_OFFSET] = (byte) bank;
@@ -301,14 +310,32 @@ public class RomMangler {
 					
 					SEQUENCE_TEMPLATE[SEQUENCE_NOTE_OFFSET] = notes[variantCount];
 					
-					writeRom(sequenceOutDir + "\\sound_effect_"+name+"_"+getHex(sequenceStartId, 4)+".c2m", SEQUENCE_TEMPLATE);
+					String fullSequenceName = sequenceOutDir + "\\sound_effect_"+name+"_"+getHex(sequenceStartId, 4)+".c2m";
+					writeRom(fullSequenceName, SEQUENCE_TEMPLATE);
+					newProjectData.add("S3Q^_^3NC3~EFFECT SEQUENCE " + sequenceStartId + " " + fullSequenceName +  "~" + fullSequenceName + "~" + sequenceStartId);
 					sequenceStartId++;
 				}
 				variantCount ++;
 			} while(variantCount <= variants);
 		}
+
+		byte[] sequenceStartIdsBytes = shortsToBytes(sequenceStartIds);
+		swapBytes(sequenceStartIdsBytes);
+		writeRom("sequenceStartIds.bin", sequenceStartIdsBytes);
+		writeRom("variantData.bin", variantsData);
+		writeRom("trackCounts.bin", trackCounts);
+		writeTextFile("newProjectData.txt", newProjectData);
 	}
 
+	private static byte[] shortsToBytes(short[] shorts) {
+		byte[] bytes = new byte[shorts.length * 2];
+		for (int x = 0; x < shorts.length; x ++ ) {
+			short val = shorts[x];
+			bytes[x * 2] = (byte) (((int) val & 0xFF00) >> 8);
+			bytes[x * 2 + 1] = (byte) ((int) val & 0xFF);
+		}
+		return bytes;
+	}
 
 	private static void pcm_sample_upsample(String in8bitPcmFile, String outFile, String multiplier) {
 		float mult = Float.valueOf(multiplier);
