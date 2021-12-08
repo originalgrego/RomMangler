@@ -28,15 +28,18 @@ public class RomMangler {
 
 	private static final int BANK_SIZE = 0x200000;
 	
-	private static byte[] SEQUENCE_TEMPLATE = new byte[] {0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+	private static final byte[] SEQUENCE_TEMPLATE = new byte[] {0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			 											  0x00, 0x05, 0x0D, 0x06, (byte) 0xFF, 0x07, 0x7E, 0x1F,
 			 											  0x0B, 0x08, 0x7D, 0x09, 0x03, (byte) 0xB9, 0x17};
 	
+	private static final int SEQUENCE_PRIORITY_OFFSET = 0;
 	private static final int SEQUENCE_BANK_OFFSET = 0x28;
 	private static final int SEQUENCE_PROGRAM_OFFSET = 0x2A;
+	private static final int SEQUENCE_NOTE_OFFSET = 0x2D;
+
 	private static final int TRACK_POINTER = 0x21;
 	
 	
@@ -262,32 +265,49 @@ public class RomMangler {
 		System.out.println("Applied sequences!");
 	}
 
-	
-	private static void cps2_gen_sequences(String bankString, String startString, String endString, String outDir) {
-		int bank = Integer.valueOf(bankString);
-		int start = Integer.valueOf(startString);
-		int end = Integer.valueOf(endString);
+	private static void cps2_gen_sequences(String csv, String bankString, String squenceStartIdString, String sequenceOutDir) {
+        int bank = fromHexString(bankString);
+        int sequenceStartId = fromHexString(squenceStartIdString);
 		
-		int trackPointerPositon = 0x10;
-		for (int x = start; x < end; x ++) {
-			SEQUENCE_TEMPLATE[SEQUENCE_BANK_OFFSET] = (byte) bank;
-			SEQUENCE_TEMPLATE[SEQUENCE_PROGRAM_OFFSET] = (byte) x;
-			for (int y = 0; y < 0x20; y += 2) {
-				SEQUENCE_TEMPLATE[y + 1] = 0;
-				SEQUENCE_TEMPLATE[y + 2] = 0;
-				if (y == trackPointerPositon) {
-					SEQUENCE_TEMPLATE[y + 2] = TRACK_POINTER;
-				}
-			}
-			writeRom(outDir + "\\sound_effect_"+x+".c2m", SEQUENCE_TEMPLATE);
-			trackPointerPositon +=2;
-			if (trackPointerPositon >= 0x20) {
-				trackPointerPositon = 0x10;
-			}
-		}
-		System.out.println("Generated Sequences!");
-	}
+		List<String> csvData = loadTextFile(csv);
 
+		byte[] notes = {(byte) 0xB9, (byte) 0xB7, (byte) 0xBB, (byte) 0xB5, (byte) 0xBD}; // Up to four variants
+		
+		for (int x = 1; x < csvData.size(); x ++) { // Skip headers
+			String line = csvData.get(x);
+			String[] split = line.split(",");
+
+			String name = split[0];
+			int code = fromHexString(split[1]);
+			String type = split[2];
+			int variants = fromHexString(split[3]);
+			int track = Integer.valueOf(split[4]);
+			int priority = fromHexString(split[5]);
+			
+			SEQUENCE_TEMPLATE[SEQUENCE_PRIORITY_OFFSET] = (byte) priority;
+			SEQUENCE_TEMPLATE[SEQUENCE_BANK_OFFSET] = (byte) bank;
+			SEQUENCE_TEMPLATE[SEQUENCE_PROGRAM_OFFSET] = (byte) code;
+
+			int variantCount = 0;
+			do {
+				for (int trackNumber = 0x14; trackNumber < 0x20; trackNumber+=2) {
+					for (int y = 0; y < 0x20; y += 2) {
+						SEQUENCE_TEMPLATE[y + 1] = 0;
+						SEQUENCE_TEMPLATE[y + 2] = 0;
+						if (y == trackNumber && (track == -1 || track == trackNumber)) {
+							SEQUENCE_TEMPLATE[y + 2] = TRACK_POINTER;
+						}
+					}
+					
+					SEQUENCE_TEMPLATE[SEQUENCE_NOTE_OFFSET] = notes[variantCount];
+					
+					writeRom(sequenceOutDir + "\\sound_effect_"+name+"_"+getHex(sequenceStartId, 4)+".c2m", SEQUENCE_TEMPLATE);
+					sequenceStartId++;
+				}
+				variantCount ++;
+			} while(variantCount <= variants);
+		}
+	}
 
 
 	private static void pcm_sample_upsample(String in8bitPcmFile, String outFile, String multiplier) {
