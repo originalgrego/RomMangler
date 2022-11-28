@@ -22,7 +22,7 @@ import java.util.zip.ZipOutputStream;
 public class RomMangler {
 	
 	public enum SPLIT_TYPES {
-		ROM_LOAD16_BYTE, ROM_LOAD32_BYTE, ROM_LOAD16_WORD_SWAP, ROMX_LOAD_WORD_SKIP_6, 
+		ROM_LOAD16_BYTE, ROM_LOAD32_BYTE, ROM_LOAD16_WORD, ROM_LOAD16_WORD_SWAP, ROMX_LOAD_WORD_SKIP_6, 
 		ROM_LOAD64_BYTE, ROM_LOAD, ROM_LOAD16_BYTE_SWAP, ROM_LOAD64_WORD, FILL, ROM_LOAD32_WORD_SWAP, ROM_LOAD32_WORD
 	}
 
@@ -32,7 +32,7 @@ public class RomMangler {
 			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			 											  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-			 											  0x00, 0x05, 0x0D, 0x06, (byte) 0xFF, 0x07, 0x7E, 0x1F,
+			 											  0x00, 0x05, 0x0D, 0x06, (byte) 0xFF, 0x07, 0x70, 0x1F,
 			 											  0x0B, 0x08, 0x7D, 0x09, 0x03, (byte) 0xB9, 0x17};
 	
 	private static final int SEQUENCE_PRIORITY_OFFSET = 0;
@@ -79,7 +79,7 @@ public class RomMangler {
 			} else if ("cps2_gen_sequences".equals(arg[0])) {
 				cps2_gen_sequences(arg[1], arg[2], arg[3], arg[4]);
 			} else if ("cps2_apply_sequences".equals(arg[0])) {
-				cps2_apply_sequences(arg[1], arg[2], arg[3]);
+				cps2_apply_sequences(arg[1], arg[2], arg[3], arg[4], arg[5]);
 			} else if ("bin_patch".equals(arg[0])) {
 				binary_patch(arg[1], arg[2], arg[3]);
 			} else if ("cps1_16bpp_to_bitplanes".equals(arg[0])) {
@@ -228,14 +228,28 @@ public class RomMangler {
 	    System.out.println("Wrote patched text file " + out);
 	}
 	
-	private static void patch(byte[] data, byte[] patchData, int location) {
-		for (int x = 0; x < patchData.length; x ++) {
-			data[location + x] = patchData[x];
-		}
+	private static void patch(byte[] data, byte[] patchData, int patchToLocation) {
+		patch(data,patchData,patchToLocation,patchData.length);
+	}
+	
+	private static void patch(byte[] data, byte[] patchData, int patchToLocation, int length) {
+		patch(data, patchData, patchToLocation, 0, length);	
 	}
 
-	private static void cps2_apply_sequences(String rom, String out, String projectFile) {
-		byte[] data = loadRom(rom);
+	private static void patch(byte[] data, byte[] patchData, int patchToLocation, int patchLocation, int length) {
+		for (int x = 0; x < length; x ++) {
+			data[patchToLocation + x] = patchData[patchLocation + x];
+		}		
+	}
+
+	private static void cps2_apply_sequences(String rom1, String rom2, String out1, String out2, String projectFile) {
+		byte[] data1 = loadRom(rom1);
+		byte[] data2 = loadRom(rom2);
+		byte[] data = new byte[data1.length + data2.length];
+		
+		patch(data, data1, 0);
+		patch(data, data2, data1.length);
+		
 		List<String> projectFileStrings = loadTextFile(projectFile);
 		
 		int sequenceTableStart = 0x8c05;
@@ -260,7 +274,11 @@ public class RomMangler {
 			}
 		}
 		
-		writeRom(out, data);
+		patch(data1, data, 0, data1.length);
+		patch(data2, data, 0, data1.length, data2.length);
+		
+		writeRom(out1, data1);
+		writeRom(out2, data2);
 		
 		System.out.println("Applied sequences!");
 	}
@@ -308,19 +326,20 @@ public class RomMangler {
 						}
 					}
 					
-					SEQUENCE_TEMPLATE[SEQUENCE_NOTE_OFFSET] = notes[variantCount];
-					
-					String fullSequenceName = sequenceOutDir + "\\sound_effect_"+name+"_"+getHex(sequenceStartId, 4)+".c2m";
-					writeRom(fullSequenceName, SEQUENCE_TEMPLATE);
-					newProjectData.add("S3Q^_^3NC3~EFFECT SEQUENCE " + sequenceStartId + " " + fullSequenceName +  "~" + fullSequenceName + "~" + sequenceStartId);
-					sequenceStartId++;
+					if (track == -1 || track == trackNumber) { // If an assigned track number was present only generate that one sequence
+						SEQUENCE_TEMPLATE[SEQUENCE_NOTE_OFFSET] = notes[variantCount];
+						
+						String fullSequenceName = sequenceOutDir + "\\sound_effect_"+name+"_"+getHex(sequenceStartId, 4)+".c2m";
+						writeRom(fullSequenceName, SEQUENCE_TEMPLATE);
+						newProjectData.add("S3Q^_^3NC3~EFFECT SEQUENCE " + sequenceStartId + " " + fullSequenceName +  "~" + fullSequenceName + "~" + sequenceStartId);
+						sequenceStartId++;
+					}
 				}
 				variantCount ++;
 			} while(variantCount <= variants);
 		}
 
 		byte[] sequenceStartIdsBytes = shortsToBytes(sequenceStartIds);
-		swapBytes(sequenceStartIdsBytes);
 		writeRom("sequenceStartIds.bin", sequenceStartIdsBytes);
 		writeRom("variantData.bin", variantsData);
 		writeRom("trackCounts.bin", trackCounts);
@@ -804,6 +823,10 @@ public class RomMangler {
 				ROM_WRITE_16_BYTE_SWAP(entry.file, entry.location, entry.length, rom);
 				System.out.println("Wrote rom 16 byte swap file " + entry.file);
 				break;
+			case ROM_LOAD16_WORD:
+				ROM_WRITE(entry.file, entry.location, entry.length, rom);
+				System.out.println("Wrote rom 16 word file " + entry.file);
+				break;				
 			case ROM_LOAD16_WORD_SWAP:
 				ROM_WRITE_16_WORD_SWAP(entry.file, entry.location, entry.length, rom);
 				System.out.println("Wrote rom 16 word swap file " + entry.file);
@@ -932,6 +955,10 @@ public class RomMangler {
 				case ROM_LOAD16_BYTE_SWAP:
 					ROM_LOAD_16_BYTE_SWAP(entry.file, entry.location, entry.length, results);
 					System.out.println("Read rom 16 byte swap file " + entry.file);
+					break;
+				case ROM_LOAD16_WORD:
+					ROM_LOAD(entry.file, entry.location, entry.length, results);
+					System.out.println("Read rom 16 word file " + entry.file);
 					break;
 				case ROM_LOAD16_WORD_SWAP:
 					ROM_LOAD16_WORD_SWAP(entry.file, entry.location, entry.length, results);
@@ -1110,6 +1137,7 @@ public class RomMangler {
 				case ROM_LOAD16_BYTE_SWAP:
 					size = entry.length * 2 + entry.location;
 					break;
+				case ROM_LOAD16_WORD:
 				case ROM_LOAD16_WORD_SWAP:
 					size = entry.length + entry.location;
 					break;
