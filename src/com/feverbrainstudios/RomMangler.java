@@ -255,7 +255,7 @@ public class RomMangler {
 		int sequenceTableStart = 0x8c05;
 		int sequencesPointer = 0xbc05;
 		for (String projectEntry: projectFileStrings) {
-			if (projectEntry.contains("SEQUENCE")) {
+			if (projectEntry.contains("S3Q^_^3NC3")) {
 				String[] split = projectEntry.split("~");
 
 				byte[] sequenceData = loadRom(split[2]);
