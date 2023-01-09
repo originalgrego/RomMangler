@@ -270,6 +270,8 @@ public class RomMangler {
 				data[sequenceTablePointer + 2] = (byte) ((sequenceStart >> 8) & 0xFF);
 				data[sequenceTablePointer + 3] = (byte) (sequenceStart & 0xFF);
 				
+				System.out.println("Applied sequence - " + split[2] + " at " + sequencesPointer);
+
 				sequencesPointer += sequenceData.length;
 			}
 		}
@@ -970,7 +972,7 @@ public class RomMangler {
 					break;
 				case ROM_LOAD64_BYTE:
 					ROM_LOAD64_BYTE(entry.file, entry.location, entry.length, results);
-					System.out.println("Read romx word skip 6 file " + entry.file);
+					System.out.println("Read romx byte skip 7 file " + entry.file);
 					break;
 				case ROM_LOAD32_WORD_SWAP:
 					ROM_LOAD32_WORD(entry.file, entry.location, entry.length, results, true);
