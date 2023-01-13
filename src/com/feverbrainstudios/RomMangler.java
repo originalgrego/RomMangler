@@ -90,6 +90,8 @@ public class RomMangler {
 				file_names_to_patches(arg[1], arg[2]);
 			} else if ("text_patch".equals(arg[0])) {
 				text_patch(arg[1], arg[2], arg[3]);
+			} else if ("split_qsound_samples".equals(arg[0])) {
+				split_qsound_samples(arg[1]);
 			}
 		} catch (RuntimeException e) {
 			e.printStackTrace();
@@ -98,6 +100,27 @@ public class RomMangler {
 
 	}
 	
+	private static void split_qsound_samples(String inDir) {
+		iterateDirectory(inDir, new DirectoryIterator() {
+			@Override
+			public void handleFile(String fileName) {
+				split_qsound_sample(inDir + "\\" + fileName);
+			}
+
+			private void split_qsound_sample(String fileName) {
+				byte[] file = loadRom(fileName);
+				if (file.length > 0x10000) {
+					byte[] newFile = new byte[0x10000];
+					byte[] newFile2 = new byte[file.length - 0x10000];
+					patch(newFile, file, 0, 0, 0x10000);
+					patch(newFile2, file, 0, 0x10000, newFile2.length);
+					writeRom(fileName, newFile);
+					writeRom(fileName.replace(".raw", "_2.raw"), newFile2);
+				}
+			}
+		});	
+	}
+
 	private static void file_names_to_patches(String directory, String outFile) {
 		List<String> patches = new ArrayList<String>();
 		iterateDirectory(directory, new DirectoryIterator() {
