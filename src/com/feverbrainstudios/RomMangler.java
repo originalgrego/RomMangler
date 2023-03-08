@@ -1147,8 +1147,9 @@ public class RomMangler {
 		try {
 			FileReader reader = new FileReader(file);
 			BufferedReader buff = new BufferedReader(reader);
-			String read = buff.readLine().trim();
+			String read = buff.readLine();
 			while (read != null) {
+				read = read.trim();
 				if (!read.isEmpty()) {
 					String[] split = read.split(",");
 					if (split.length > 3) { // File entries
@@ -1160,7 +1161,7 @@ public class RomMangler {
 					} else if (split.length == 3) {	// Fill type
 						entries.add(new ConfigEntry(split[0].trim(), "", Integer.valueOf(split[1].trim(), 16), Integer.valueOf(split[2].trim(), 16)));
 					}
-					read = buff.readLine().trim();
+					read = buff.readLine();
 				}
 			}
 			buff.close();
