@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -39,6 +40,7 @@ public class RomMangler {
 	private static final int SEQUENCE_BANK_OFFSET = 0x28;
 	private static final int SEQUENCE_PROGRAM_OFFSET = 0x2A;
 	private static final int SEQUENCE_NOTE_OFFSET = 0x2D;
+	private static final int SEQUENCE_VOLUME_OFFSET = 0x26;
 
 	private static final int TRACK_POINTER = 0x21;
 	
@@ -77,7 +79,7 @@ public class RomMangler {
 			} else if ("pcm_sample_upsample".equals(arg[0])) {
 				pcm_sample_upsample(arg[1], arg[2], arg[3]);
 			} else if ("cps2_gen_sequences".equals(arg[0])) {
-				cps2_gen_sequences(arg[1], arg[2], arg[3], arg[4]);
+				cps2_gen_sequences(arg[1], arg[2], arg[3], arg[4], arg[5]);
 			} else if ("cps2_apply_sequences".equals(arg[0])) {
 				cps2_apply_sequences(arg[1], arg[2], arg[3], arg[4], arg[5]);
 			} else if ("bin_patch".equals(arg[0])) {
@@ -308,9 +310,10 @@ public class RomMangler {
 		System.out.println("Applied sequences!");
 	}
 
-	private static void cps2_gen_sequences(String csv, String bankString, String squenceStartIdString, String sequenceOutDir) {
+	private static void cps2_gen_sequences(String csv, String bankString, String squenceStartIdString, String volumeString, String sequenceOutDir) {
         int bank = fromHexString(bankString);
         int sequenceStartId = fromHexString(squenceStartIdString);
+        int volume = fromHexString(volumeString);
 		
 		List<String> csvData = loadTextFile(csv);
 
@@ -339,7 +342,8 @@ public class RomMangler {
 			SEQUENCE_TEMPLATE[SEQUENCE_PRIORITY_OFFSET] = (byte) priority;
 			SEQUENCE_TEMPLATE[SEQUENCE_BANK_OFFSET] = (byte) bank;
 			SEQUENCE_TEMPLATE[SEQUENCE_PROGRAM_OFFSET] = (byte) code;
-
+			SEQUENCE_TEMPLATE[SEQUENCE_VOLUME_OFFSET] = (byte) volume;
+			
 			int variantCount = 0;
 			do {
 				for (int trackNumber = 0x14; trackNumber < 0x20; trackNumber+=2) {
@@ -761,6 +765,24 @@ public class RomMangler {
 		return Integer.valueOf(string.trim(), 16);
 	}
 
+	private static boolean isUnix() {
+		String os = System.getProperty("os.name", "generic").toLowerCase();
+		if (os.contains("mac") || os.contains("dar")) {
+			// Mac
+			return true;
+		} else if (os.contains("win")) {
+			// Windows
+			return false;
+		}
+
+		// Linux
+		return true;
+	}
+	
+	public static String nixDirectory(String param) {
+		return param.replace("\\", "/");
+	}
+	
 	private static void unzip(String zipFile, String path) {
 		path = new File(path).getAbsolutePath();
 		FileInputStream inputStream;
@@ -1125,15 +1147,21 @@ public class RomMangler {
 		try {
 			FileReader reader = new FileReader(file);
 			BufferedReader buff = new BufferedReader(reader);
-			String read = buff.readLine();
+			String read = buff.readLine().trim();
 			while (read != null) {
-				String[] split = read.split(",");
-				if (split.length > 3) {
-					entries.add(new ConfigEntry(split[0].trim(), split[1].trim(), Integer.valueOf(split[2].trim(), 16), Integer.valueOf(split[3].trim(), 16)));
-				} else {
-					entries.add(new ConfigEntry(split[0].trim(), "", Integer.valueOf(split[1].trim(), 16), Integer.valueOf(split[2].trim(), 16)));
+				if (!read.isEmpty()) {
+					String[] split = read.split(",");
+					if (split.length > 3) { // File entries
+						String fileName = split[1].trim();
+						if (isUnix()) {
+							fileName = nixDirectory(fileName);
+						}
+						entries.add(new ConfigEntry(split[0].trim(), fileName, Integer.valueOf(split[2].trim(), 16), Integer.valueOf(split[3].trim(), 16)));
+					} else if (split.length == 3) {	// Fill type
+						entries.add(new ConfigEntry(split[0].trim(), "", Integer.valueOf(split[1].trim(), 16), Integer.valueOf(split[2].trim(), 16)));
+					}
+					read = buff.readLine().trim();
 				}
-				read = buff.readLine();
 			}
 			buff.close();
 			reader.close();
