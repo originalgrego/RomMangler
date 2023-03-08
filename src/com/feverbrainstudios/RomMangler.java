@@ -780,7 +780,7 @@ public class RomMangler {
 	}
 	
 	public static String nixDirectory(String param) {
-		return param.replace("\\", "/");
+		return "./" + param.replace("\\", "/");
 	}
 	
 	private static void unzip(String zipFile, String path) {
