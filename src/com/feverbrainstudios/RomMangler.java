@@ -78,6 +78,10 @@ public class RomMangler {
 				pcm_sample_reduce_width_dir(arg[1], arg[2], arg[3]);
 			} else if ("pcm_sample_upsample".equals(arg[0])) {
 				pcm_sample_upsample(arg[1], arg[2], arg[3]);
+			} else if ("pcm_sample_make_signed".equals(arg[0])) {
+				pcm_sample_make_signed(arg[1], arg[2]);
+			} else if ("pcm_sample_make_signed_dir".equals(arg[0])) {
+				pcm_sample_make_signed_dir(arg[1], arg[2]); 
 			} else if ("cps2_gen_sequences".equals(arg[0])) {
 				cps2_gen_sequences(arg[1], arg[2], arg[3], arg[4], arg[5]);
 			} else if ("cps2_apply_sequences".equals(arg[0])) {
@@ -429,6 +433,31 @@ public class RomMangler {
 	
 	private interface DirectoryIterator {
 		public void handleFile(String file);
+	}
+	
+	private static void pcm_sample_make_signed_dir(String inDir, String outDir) {
+		iterateDirectory(inDir, new DirectoryIterator() {
+			@Override
+			public void handleFile(String fileName) {
+				pcm_sample_make_signed(inDir + "\\" + fileName, outDir + "\\" + fileName);
+			}
+		});	
+	}
+	
+	private static void pcm_sample_make_signed(String in8bitUnsignedPcmFile, String out8bitSignedPcmFile) {
+		byte[] samples = loadRom(in8bitUnsignedPcmFile);
+		byte[] outSamples = new byte[samples.length];
+				
+		for (int x = 0; x < samples.length; x ++) {
+			int temp = samples[x];
+			if (temp < 0) {
+				temp = 256 + temp;
+			}
+			temp = temp - 128;
+			outSamples[x] = (byte) (temp);
+		}
+		
+		writeRom(out8bitSignedPcmFile, outSamples);
 	}
 	
 	private static void pcm_sample_reduce(String in16bitPcmFile, String out8bitPcmFile) {
