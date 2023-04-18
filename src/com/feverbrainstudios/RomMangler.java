@@ -86,6 +86,8 @@ public class RomMangler {
 				cps2_gen_sequences(arg[1], arg[2], arg[3], arg[4], arg[5]);
 			} else if ("cps2_apply_sequences".equals(arg[0])) {
 				cps2_apply_sequences(arg[1], arg[2], arg[3], arg[4], arg[5]);
+			} else if ("cps2_gen_instrument_config".equals(arg[0])) {
+				cps2_gen_instrument_config(arg[1], arg[2], arg[3]);
 			} else if ("bin_patch".equals(arg[0])) {
 				binary_patch(arg[1], arg[2], arg[3]);
 			} else if ("cps1_16bpp_to_bitplanes".equals(arg[0])) {
@@ -271,6 +273,63 @@ public class RomMangler {
 		}		
 	}
 
+	private static void cps2_gen_instrument_config(String octavesFileString, String soundEffectFolder, String outFile) {
+		List<String> newProjectData = new ArrayList<String>();
+		List<String> octavesFile = loadTextFile(octavesFileString);
+		for (String line : octavesFile) {
+			String[] split = line.split(" : ");
+			int instrument = fromHexString(split[0]);
+
+			String[] octavesStrings = split[1].substring(1, split[1].length() - 1).split(",");
+
+			int[] octaves = new int[octavesStrings.length];
+			for (int x = 0; x < octavesStrings.length; x ++) {
+				octaves[x] = fromHexString(octavesStrings[x].strip());
+			}
+
+			int[] octaveConfig = getOctaveConfig(octaves);
+			
+			for (int x = 0; x < octaves.length; x ++) {
+				int octave = octaves[x];
+				String sampleName = "sample_" + getHex(instrument, 2) + "-00" + octave + ".wav";
+				String sampleFileName = soundEffectFolder + "\\" + sampleName;
+				int sampleLength = getFileLength(sampleFileName);
+				String sampleEntry = "S4W^_^L3~" + "FM_SAMPLE" + sampleName + "~" + sampleFileName + "~" + sampleLength + "~" + (sampleLength - 2) + "~" + (octave * 12 + 12) + "~24000";
+				newProjectData.add(sampleEntry);
+			}
+			
+			for (int x = 1; x < 9; x ++) {
+				int octave = octaveConfig[x];
+				String sampleName = "FM_SAMPLEsample_" + getHex(instrument, 2) + "-00" + octave + ".wav";
+				String instrumentEntry = "IN5TR^_^W3NT~" + "INSTRUMENT" + x + sampleName + "~" + sampleName + "~Effect~" + x + "~" + instrument;
+				newProjectData.add(instrumentEntry);
+			}
+		}
+		
+		writeTextFile(outFile, newProjectData);
+	}
+	
+	private static int[] getOctaveConfig(int[] octaves) {
+		int lastIndex = octaves.length - 1;
+		int index = 0;
+		int[] values = new int[9];
+		for (int x = 1; x < 9; x ++) {
+			int current = octaves[index];
+			if (lastIndex == index) {
+				values[x] = current;
+			} else {
+				int next = octaves[index + 1];
+				if (x > ((current + next) / 2)) {
+					index ++;
+					values[x] = next;
+				} else {
+					values[x] = current;
+				}
+			}
+		}
+		return values;
+	}
+	
 	private static void cps2_apply_sequences(String rom1, String rom2, String out1, String out2, String projectFile) {
 		byte[] data1 = loadRom(rom1);
 		byte[] data2 = loadRom(rom2);
@@ -1080,7 +1139,11 @@ public class RomMangler {
 		}
 	}
 	
-
+	private static int getFileLength(String fileString) {
+		File file = new File(fileString);
+		return (int)file.length();
+	}
+	
 	private static byte[] loadRom(String fileString) {
 		File file = new File(fileString);
 		byte[] results = new byte[(int)file.length()];
